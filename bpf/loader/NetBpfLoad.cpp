@@ -1635,20 +1635,23 @@ static int doLoad(char** argv, char * const envp[]) {
 
     logTetheringApexVersion();
 
-    // T require kernel 4.9 (and eBpf support)
-    if (isAtLeastT && !isAtLeastKernelVersion(4, 9, 0)) {
-        ALOGW("Android T requires kernel 4.9.");
+    // both S and T require kernel 4.9 (and eBpf support)
+    if (!isAtLeastKernelVersion(4, 9, 0)) {
+        ALOGE("Android S & T require kernel 4.9.");
+        return 1;
     }
 
     // U bumps the kernel requirement up to 4.14
     if (isAtLeastU && !isAtLeastKernelVersion(4, 14, 0)) {
-        ALOGW("Android U requires kernel 4.14.");
+        ALOGE("Android U requires kernel 4.14.");
+        return 1;
     }
 
     // V bumps the kernel requirement up to 4.19
     // see also: //system/netd/tests/kernel_test.cpp TestKernel419
     if (isAtLeastV && !isAtLeastKernelVersion(4, 19, 0)) {
-        ALOGW("Android V requires kernel 4.19.");
+        ALOGE("Android V requires kernel 4.19.");
+        return 1;
     }
 
     // 25Q2 bumps the kernel requirement up to 5.4
