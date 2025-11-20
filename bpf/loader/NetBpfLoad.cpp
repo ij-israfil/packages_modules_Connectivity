@@ -1598,6 +1598,7 @@ static int doLoad(char** argv, char * const envp[]) {
     const bool runningAsRoot = !getuid();  // true iff U QPR3 or V+
 
     const int first_api_level = GetIntProperty("ro.board.first_api_level", api_level);
+    bool failed = false;
 
     // last in U QPR2 beta1
     const bool has_platform_bpfloader_rc = exists("/system/etc/init/bpfloader.rc");
@@ -1638,58 +1639,58 @@ static int doLoad(char** argv, char * const envp[]) {
     // both S and T require kernel 4.9 (and eBpf support)
     if (!isAtLeastKernelVersion(4, 9, 0)) {
         ALOGE("Android S & T require kernel 4.9.");
-        return 1;
+        failed = true;
     }
 
     // U bumps the kernel requirement up to 4.14
     if (isAtLeastU && !isAtLeastKernelVersion(4, 14, 0)) {
         ALOGE("Android U requires kernel 4.14.");
-        return 1;
+        failed = true;
     }
 
     // V bumps the kernel requirement up to 4.19
     // see also: //system/netd/tests/kernel_test.cpp TestKernel419
     if (isAtLeastV && !isAtLeastKernelVersion(4, 19, 0)) {
         ALOGE("Android V requires kernel 4.19.");
-        return 1;
+        failed = true;
     }
 
     // 25Q2 bumps the kernel requirement up to 5.4
     // see also: //system/netd/tests/kernel_test.cpp TestKernel54
     if (isAtLeast25Q2 && !isAtLeastKernelVersion(5, 4, 0)) {
         ALOGE("Android 25Q2 requires kernel 5.4.");
-        return 1;
+        failed = true;
     }
 
     // 25Q4 bumps the kernel requirement up to 5.10
     // see also: //system/netd/tests/kernel_test.cpp TestKernel510
     if (isAtLeast25Q4 && !isAtLeastKernelVersion(5, 10, 0)) {
         ALOGE("Android 25Q4 requires kernel 5.10.");
-        return 1;
+        failed = true;
     }
 
     // Technically already required by U, but only enforce on V+
     // see also: //system/netd/tests/kernel_test.cpp TestKernel64Bit
     if (isAtLeastV && isKernel32Bit() && isAtLeastKernelVersion(5, 16, 0)) {
         ALOGE("Android V+ platform with 32 bit kernel version >= 5.16.0 is unsupported");
-        if (!isTV()) return 1;
+        failed = true;
     }
 
     if (isKernel32Bit() && isAtLeast25Q2) {
         ALOGE("Android 25Q2 requires 64 bit kernel.");
-        return 1;
+        failed = true;
     }
 
     // 6.6 is highest version supported by Android V, so this is effectively W+ (sdk=36+)
     if (isKernel32Bit() && isAtLeastKernelVersion(6, 7, 0)) {
         ALOGE("Android platform with 32 bit kernel version >= 6.7.0 is unsupported");
-        return 1;
+        failed = true;
     }
 
     // Various known ABI layout issues, particularly wrt. bpf and ipsec/xfrm.
     if (isAtLeastV && isKernel32Bit() && isX86()) {
         ALOGE("Android V requires X86 kernel to be 64-bit.");
-        if (!isTV()) return 1;
+        failed = true;
     }
 
     if (isAtLeastV) {
@@ -1757,10 +1758,10 @@ static int doLoad(char** argv, char * const envp[]) {
             ALOGW("[Arm KernelUpRev] 32-bit userspace unsupported on 6.2+ kernels.");
         } else if (isArm()) {
             ALOGE("[Arm] 64-bit userspace required on 6.2+ kernels (%d).", first_api_level);
-            return 1;
+            failed = true;
         } else { // x86 since RiscV cannot be 32-bit
             ALOGE("[x86] 64-bit userspace required on 6.2+ kernels.");
-            return 1;
+            failed = true;
         }
     }
 
@@ -1774,7 +1775,7 @@ static int doLoad(char** argv, char * const envp[]) {
     if (isUserspace32bit() && isAtLeastKernelVersion(6, 13, 0)) {
         // due to previous check only reachable on Arm && (<=T kernel uprev || TV || Wear)
         ALOGE("64-bit userspace required on 6.13+ kernels.");
-        return 1;
+        failed = true;
     }
 
     if (isAtLeast25Q2) {
@@ -1809,8 +1810,9 @@ static int doLoad(char** argv, char * const envp[]) {
         // but we need 0 (enabled)
         // (this writeFile is known to fail on at least 4.19, but always defaults to 0 on
         // pre-5.13, on 5.13+ it depends on CONFIG_BPF_UNPRIV_DEFAULT_OFF)
-        if (writeProcSysFile("/proc/sys/kernel/unprivileged_bpf_disabled", "0\n") &&
-            isAtLeastKernelVersion(5, 13, 0)) return 1;
+        if (writeProcSysFile("/proc/sys/kernel/unprivileged_bpf_disabled", "0\n")) {
+            failed = true;
+        }
     }
 
     if (isAtLeastU) {
@@ -1825,12 +1827,16 @@ static int doLoad(char** argv, char * const envp[]) {
         //  kernel does not have CONFIG_BPF_JIT=y)
         // BPF_JIT is required by R VINTF (which means 4.14/4.19/5.4 kernels),
         // but 4.14/4.19 were released with P & Q, and only 5.4 is new in R+.
-        if (writeProcSysFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) return 1;
+        if (writeProcSysFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) {
+            failed = true;
+        }
 
         // Enable JIT kallsyms export for privileged users only
         // (Note: this (open) will fail with ENOENT 'No such file or directory' if
         //  kernel does not have CONFIG_HAVE_EBPF_JIT=y)
-        if (writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 1;
+        if (writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) {
+            failed = true;
+        }
     }
 
     if (runningAsRoot) {  // implies U QPR3+ and kernel 4.14+
@@ -1891,31 +1897,24 @@ static int doLoad(char** argv, char * const envp[]) {
         if (createDir("/sys/fs/bpf/net_private")) return 1;
 
         // This one is primarily meant for triggering genfscon rules.
-        if (createDir("/sys/fs/bpf/loader")) return 1;
+        if (createDir("/sys/fs/bpf/loader")) failed = true;
     }
 
     // Load all ELF objects, create programs and maps, and pin them
     if (loadAllObjects(bpfloader_ver)) {
+        failed = true;
+    }
+
+    // leave a flag that we're done
+    if (createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 1;
+
+    if (failed) {
         ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS ===");
         ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
         ALOGE("If this triggers randomly, you might be hitting some memory allocation "
               "problems or startup script race.");
         ALOGE("--- DO NOT EXPECT SYSTEM TO BOOT SUCCESSFULLY ---");
-        sleep(20);
-        return 2;
     }
-
-    int key = 1;
-    int value = 123;
-    unique_fd map(
-            createMap(BPF_MAP_TYPE_ARRAY, sizeof(key), sizeof(value), 2, 0));
-    if (writeToMapEntry(map, &key, &value, BPF_ANY)) {
-        ALOGE("Critical kernel bug - failure to write into index 1 of 2 element bpf map array.");
-        if (isAtLeastT) return 1;
-    }
-
-    // leave a flag that we're done
-    if (createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 1;
 
     // platform bpfloader will only succeed when run as root
     if (!runningAsRoot) {
