@@ -1007,16 +1007,11 @@ DEFINE_NETD_BPF_PROG_RANGES(ingress, stats, 5_10, INF, U, 25Q2)
     return bpf_traffic_account(skb, INGRESS, KVER_5_10, API(U));
 }
 
-// Android T/U/V/25Q2 5.4 & T 5.10/5.15
-DEFINE_NETD_BPF_PROG_RANGES(ingress, stats, 5_4, INF, T, 25Q4)
+// Android T/U/V 4.19 & T/U/V/25Q2 5.4 & T 5.10/5.15
+DEFINE_NETD_BPF_PROG_RANGES(ingress, stats, 4_19, 4_19, INF)
 (struct __sk_buff* skb) {
-    return bpf_traffic_account(skb, INGRESS, KVER_5_4, API(T));
-}
 
-// Android T/U/V 4.19
-DEFINE_NETD_BPF_PROG_RANGES(ingress, stats, 4_19, 5_4, T, 25Q2)
-(struct __sk_buff* skb) {
-return bpf_traffic_account(skb, INGRESS, KVER_4_19, API(T));
+    return bpf_traffic_account(skb, INGRESS, KVER_4_19, API(T));
 }
 
 // Android T 4.9 & T/U 4.14
@@ -1063,16 +1058,10 @@ DEFINE_NETD_BPF_PROG_RANGES(egress, stats, 5_10, INF, U, 25Q2)
     return bpf_traffic_account(skb, EGRESS, KVER_5_10, API(U));
 }
 
-// Android T/U/V/25Q2 5.4 & T 5.10/5.15
-DEFINE_NETD_BPF_PROG_RANGES(egress, stats, 5_4, INF, T, 25Q4)
+// Android T/U/V 4.19 & T/U/V/25Q2 5.4 & T 5.10/5.15
+DEFINE_NETD_BPF_PROG_RANGES(egress, stats, 4_19, 4_19, INF)
 (struct __sk_buff* skb) {
-    return bpf_traffic_account(skb, EGRESS, KVER_5_4, API(T));
-}
-
-// Android T/U/V 4.19
-DEFINE_NETD_BPF_PROG_RANGES(egress, stats, 4_19, 5_4, T, 25Q2)
-(struct __sk_buff* skb) {
-return bpf_traffic_account(skb, EGRESS, KVER_4_19, API(T));
+    return bpf_traffic_account(skb, EGRESS, KVER_4_19, API(T));
 }
 
 // Android T 4.9 & T/U 4.14
